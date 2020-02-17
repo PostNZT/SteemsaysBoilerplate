@@ -16,7 +16,7 @@ router.post('/create-post', util.isAuthenticated, (req, res) => {
     let author = req.session.steemconnect.name
     let permlink = util.urlString()
     var tags = req.body.tags.split(',').map(item => item.trim());
-    let primaryTag = tags[0] || 'photography'
+    let primaryTag = 'hive-153112'
     let otherTags = tags.slice(1)
     let title = req.body.title
     let body = req.body.post
@@ -60,7 +60,7 @@ router.post('/vote', util.isAuthenticatedJSON, (req, res) => {
 router.post('/follow', util.isAuthenticatedJSON, (req, res) => {
   let follower = req.session.steemconnect.name
   let follow = req.body.author
- 
+
 
   steem.follow(follower, follow, function (err, steemResponse) {
     if (err) {
