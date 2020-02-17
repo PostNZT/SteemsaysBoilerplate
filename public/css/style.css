@@ -90,7 +90,13 @@ button, input[type="submit"] {
 .vote {
   width: 100px;
 }
+.follow {
+  width: 100px;
+}
 
+.downVote {
+  width: 100px;
+}
 .comment-message {
   margin-top: 20px;
 }

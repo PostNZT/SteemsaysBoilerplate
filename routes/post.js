@@ -56,6 +56,38 @@ router.post('/vote', util.isAuthenticatedJSON, (req, res) => {
     });
 })
 
+/* follow  */
+router.post('/follow', util.isAuthenticatedJSON, (req, res) => {
+  let follower = req.session.steemconnect.name
+  let follow = req.body.author
+ 
+
+  steem.follow(follower, follow, function (err, steemResponse) {
+    if (err) {
+        res.json({ error: err.error_description })
+    } else {
+        res.json()
+    }
+  });
+})
+
+/* POST a DownVote broadcast to STEEM network. */
+router.post('/downVote', util.isAuthenticatedJSON, (req, res) => {
+  let postId = req.body.postId
+  let voter = req.session.steemconnect.name
+  let author = req.body.author
+  let permlink = req.body.permlink
+  let weight = -10000
+
+  steem.vote(voter, author, permlink, weight, function (err, steemResponse) {
+    if (err) {
+        res.json({ error: err.error_description })
+    } else {
+        res.json({ id: postId })
+    }
+  });
+})
+
 /* POST a comment broadcast to STEEM network. */
 router.post('/comment',  util.isAuthenticatedJSON, (req, res) => {
     let author = req.session.steemconnect.name

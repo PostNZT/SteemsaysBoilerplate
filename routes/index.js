@@ -10,11 +10,14 @@ router.get('/', (req, res, next) =>  {
   }
 });
 
+//planning to add tag so that I can get the data from the hive
 /* GET a users blog profile page. */
 router.get('/@:username', (req, res, next) => {
       let username = req.params.username
+
       res.render('profile', {
-        username: username
+        username: username,
+        user: req.session.steemconnect ? req.session.steemconnect.name : ''
       });
 });
 

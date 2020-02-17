@@ -117,10 +117,18 @@ function getMoreContent(filter, tag){
  * @param {Boolean} initial - If this is an initial call or a call from 'get-more-posts' to add aditional posts to feed
  */
 function displayContent(result, initial){
+  console.log('should return results', result)
+
   if (!initial) result.shift()
+
   for (let i = 0; i < result.length ; i++) {
       let post = result[i];
-      allContent.push(post)
+      console.log('testing',post)
+      //add restrictor for category: "hive-153112"
+      result = result.filter(post => post.category === 'hive-153112')
+      // console.log(result);
+      allContent.push(result)
+      // allContent.push(post)
 
       var urlRegex = /(https?:\/\/[^\s]+)/g;
       post.body = post.body.replace(urlRegex, (url) => {
@@ -136,9 +144,11 @@ function displayContent(result, initial){
         image = JSON.parse(post.json_metadata).image[0]
       }
 
+
+      //removed <img class="item__image " src="https://steemitimages.com/512x512/${image}" onerror=""> causing error
       let itemTemplate = `
         <div class="item " data-post-id="${post.id}" data-url="${post.url}" data-permlink="${ post.permlink }">
-          <img class="item__image " src="https://steemitimages.com/520x520/${image}" onerror="">
+
           <div class="item__meta">
             <a href="${post.url}"><h3>${post.title}</h3></a>
             <a href="/@${post.author}"><span>@${post.author}</span></a>
@@ -146,7 +156,9 @@ function displayContent(result, initial){
               <input type="hidden" name="postId" value="${post.id}">
               <input type="hidden" name="author" value="${post.author}">
               <input type="hidden" name="permlink" value="${post.permlink}">
+              <input type="text" name="category" value="${post.category}">
               <input type="submit" class="vote" value="Vote">
+              <input type="submit" class="downVote" value="downVote">
             </form>
           </div>
         </div>
@@ -282,7 +294,7 @@ function generateProfileImage(author){
  */
 function appendSinglePost(post, users){
   let author = users[post.author]
-  console.log(author)
+  console.log("HEY:", post)
   let html = converter.makeHtml(post.body)
   let profileImage = generateProfileImage(author)
 
@@ -292,6 +304,7 @@ function appendSinglePost(post, users){
     <a href="/@${post.author}" class="author-username">@${post.author}</a>
     <div class="tags">${tags}</div>
     <h2 class="title">${post.title}</h2>
+    <input type="submit" class="follow" value="follow">
   `
   let voteButton = `
   <form method="post">
@@ -300,6 +313,17 @@ function appendSinglePost(post, users){
     <input type="hidden" name="permlink" value="${post.permlink}">
     <input type="submit" class="vote" value="Vote">
   </form>`
+
+  //this is the downvote button
+  let downVoteButton = `
+  <form method="post">
+    <input type="hidden" name="postId" value="${post.id}">
+    <input type="hidden" name="author" value="${post.author}">
+    <input type="hidden" name="permlink" value="${post.permlink}">
+    <input type="submit" class="downVote" value="DownVote">
+  </form>
+  `
+
   let commentBox = `
   <div>
     <textarea class="comment-message" rows="5"></textarea>
@@ -358,6 +382,7 @@ createCommentTemplate = (post) => {
             <input type="hidden" name="author" value="${post.author}">
             <input type="hidden" name="permlink" value="${post.permlink}">
             <input type="submit" class="vote" value="Vote">
+            <input type="submit" class="downVote" value="downVote">
           </form>
           <span class="sc-item__divider">|</span>
           <span class="sc-item__votecount">${post.votes} ${voteMessage} </span>
@@ -367,11 +392,12 @@ createCommentTemplate = (post) => {
     }
 
 /**
- * format raw user accoutn data from Steem api
+ * format raw user account data from Steem api
  * @function
  * @param {String} username - a single steem username
+ * @param {String} scuser
  */
-function getAccountInfo(username) {
+function getAccountInfo(username,scuser, callback) {
     let userInfo;
 
     return new Promise((resolve, reject) => {
@@ -397,10 +423,13 @@ function getAccountInfo(username) {
         let votePower = user.voting_power += (10000 * lastVoteTime / 432000);
         votePower = Math.min(votePower / 100, 100).toFixed(2);
 
+        //this is the declaration for the data object which holds the data for the profiles
+        //added the steemitimages.com so that the cover will show.
+
         let data = {
           name: user.name,
           image: jsonData.profile_image ? 'https://steemitimages.com/512x512/' + jsonData.profile_image : '',
-          cover: jsonData.cover_image,
+          cover: jsonData.cover_image ? 'https://steemitimages.com/2048x512/' + jsonData.cover_image : '',
           rep: steem.formatter.reputation(user.reputation),
           effectiveSp: parseInt(steemPower  + delegatedSteemPower - -outgoingSteemPower),
           sp: parseInt(steemPower).toLocaleString(),
@@ -412,14 +441,37 @@ function getAccountInfo(username) {
           numOfPosts: user.post_count,
           followerCount: '',
           followingCount: '',
+          //added followers & following to show all the users
+          follower: '',
+          following: '',
           usdValue: '',
           createdDate: new Date (user.created)
         }
+
+        //this function is for getting the count for the followers
         steem.api.getFollowCount(user.name, function(err, result){
           data.followerCount = result.follower_count
           data.followingCount = result.following_count
           resolve(data)
         })
+
+        //this function should handle to get all the names of the followees
+        //this should be invoked!
+        steem.api.getFollowers(user.name, null, "blog", 1000, function(err, result){
+          for (let i = 0; i < result.length ; i++) {
+            if (result[i].follower == scuser){
+              data.following = true
+              console.log("followed")
+              break
+            }else {
+              data.following = false
+              console.log("not followed")
+            }
+          }
+          callback(data);
+        })
+
+
         data.usdValue = steem.formatter.estimateAccountValue(user)
       })
     });
@@ -508,25 +560,52 @@ if ($('main').hasClass('transfers')){
   })
 }
 
-if ($('main').hasClass('profile') ) {
-  let username = $('.profile').data('username')
-  getAccountInfo(username).then(data => {
-    data.cover = data.cover || 'http://placehold.it/1200x300?text=-'
+
+//this function would handle the profile header
+//what to do show the followers
+
+
+
+
+function processResponse( data ) {
+  data.cover = data.cover || 'http://placehold.it/1200x300?text=-'
+
+  console.log('This is a test', data)
+    //transfer the follow button that was set to the main
+    let followButton = `
+      <form method="post">
+        <input type="hidden" name="follow" value="${data.name}">
+        <input type="submit" class="vote" value="Vote">
+      </form>`
+
+
     let template =
-    `<header class="profile__header" style="background-image: url(${data.cover})">
+      `<header class="profile__header" style="background-image: url(${data.cover})">
       <h2>${data.name} [${data.rep}]</h2>
       <img src="${data.image}" width="100px">
       <h5>Followers: ${data.followerCount} - Following: ${data.followingCount}</h5>
-      </header>
-    `
-    $('main').prepend(template)
-  })
+      <input type="submit" class="follow" value="follow">
+      </header>`
+
+    //code here for the if statement
+    $('main').prepend(template + followButton)
+    let following = data.following
+    if(following){console.log("You have followed this account")
+    }else{console.log("You have not yet followed this account")}
+    // console.log(data);
+}
+
+if ($('main').hasClass('profile') ) {
+
+  let user = $('.profile').data('user')
+  let username = $('.profile').data('username')
+  getAccountInfo(username, user, processResponse)
   let query = { tag: username, limit: 10 }
   getBlog(query, true)
 }
 
 // UI Actions
-
+//This action is for the upvote
 $('main').on('click', '.vote',(e) => {
   let $voteButton = $(e.currentTarget)
   e.preventDefault()
@@ -539,6 +618,59 @@ $('main').on('click', '.vote',(e) => {
       $(`<span>${response.error.error_description}</span>`).insertAfter($voteButton)
     } else {
       $('<span>Voted!</span>').insertAfter($voteButton)
+    }
+  })
+})
+
+// UI Actions
+//This action is for the upvote
+$('main').on('click', '.follow',(e) => {
+  let $followButton = $(e.currentTarget)
+  e.preventDefault()
+  $.post({
+    url: '/post/follow',
+    dataType: 'json',
+    data:  $(e.currentTarget).parent().serialize()
+  }, (response) => {
+    if (response.error) {
+      $(`<span>${response.error.error_description}</span>`).insertAfter($followButton)
+    } else {
+      $('<span>Followed!</span>').insertAfter($followButton)
+    }
+  })
+})
+
+//this is feature that will unfollow the selected username
+$('main').on('click', '.unfollow',(e) => {
+  let $unfollowButton = $(e.currentTarget)
+  e.preventDefault()
+  $.post({
+    url: '/post/unfollow',
+    dataType: 'json',
+    data:  $(e.currentTarget).parent().serialize()
+  }, (response) => {
+    if (response.error) {
+      $(`<span>${response.error.error_description}</span>`).insertAfter($followButton)
+    } else {
+      $('<span>Unfollowed!</span>').insertAfter($followButton)
+    }
+  })
+})
+
+
+// this is the downvote function
+$('main').on('click', '.downVote',(e) => {
+  let $DownVoteButton = $(e.currentTarget)
+  e.preventDefault()
+  $.post({
+    url: '/post/downVote',
+    dataType: 'json',
+    data:  $(e.currentTarget).parent().serialize()
+  }, (response) => {
+    if (response.error) {
+      $(`<span>${response.error.error_description}</span>`).insertAfter($DownVoteButton)
+    } else {
+      $('<span>DownVoted!</span>').insertAfter($voteButton)
     }
   })
 })
@@ -559,6 +691,7 @@ $('main').on('click', '.send-comment', (e) => {
           console.log(response)
           if (response.error) {
             $(`<span>${response.error.error_description}</span>`).insertAfter($comment)
+            $(`<span>${response.author}</span>`).insertAfter($comment)
           } else {
             $(`<p>${response.msg}</p>`).insertAfter($comment)
           }
